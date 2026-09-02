@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+  Исключения для SpotBugs. Ложных срабатываний у него мало, поэтому список
+  короткий — таким и должен остаться. Описание находки лежит в отчёте
+  build/reports/spotbugs/main.html.
+
+  Подавить одно срабатывание можно прямо в коде:
+      @SuppressFBWarnings(value = "EI_EXPOSE_REP", justification = "почему это ок")
+-->
+<FindBugsFilter>
+    <!-- На автосгенерированных аксессорах record'ов чинить нечего.
+         В обычных классах правило продолжает работать. -->
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+        <Source name="~.*[\\/]dto[\\/].*"/>
+    </Match>
+</FindBugsFilter>
