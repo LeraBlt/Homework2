@@ -1,93 +1,346 @@
-# Homework 2 - Cashback Merge
+# Проект 2. Cashback Merge
 
-Мини-игра в духе 2048 на поле 4 × 4. Одинаковые плитки кэшбэка объединяются: 1% + 1% = 2%, затем 4%, 8%, 16% и 32%. Число ходов ограничено.
+Мини-игра в духе 2048 на поле `4x4`. На поле появляются плитки с кэшбэком,
+две одинаковые объединяются в следующую:
 
-## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://gitlab.education.tbank.ru/t-academy-2026/java/templates/homework-2-cashback-merge.git
-git branch -M master
-git push -uf origin master
+```text
+1% + 1% = 2%    2% + 2% = 4%    ...    16% + 16% = 32%
 ```
 
-## Integrate with your tools
+У игрока ограниченное число ходов, цель — собрать максимальный кэшбэк.
 
-* [Set up project integrations](https://gitlab.education.tbank.ru/t-academy-2026/java/templates/homework-2-cashback-merge/-/settings/integrations)
+Но у проекта есть второй, продуктовый слой. По итоговой плитке начисляется
+награда, и эта награда стоит компании денег. Поэтому максимальную награду
+должна получать ограниченная доля игроков — например, не больше `20%`.
+Проверяется это симуляцией на тысячах «игроков» до запуска акции.
 
-## Collaborate with your team
+Задание разбито на три merge request'а. Делай их по очереди.
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+---
 
-## Test and Deploy
+## MR1 — Модель, конфиг, начальное состояние
 
-Use the built-in continuous integration in GitLab.
+- поле `4x4`, плитки с уровнями кэшбэка, состояние игры;
+- конфиг кампании с загрузкой из файла и валидацией;
+- создание начального состояния по `seed`;
+- текстовый вывод поля.
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+Пример spawn-правил (появление новых плиток):
 
-***
+```json
+{
+  "spawnRules": [
+    { "cashback": "1", "probability": "0.85" },
+    { "cashback": "2", "probability": "0.15" }
+  ]
+}
+```
 
-# Editing this README
+Инварианты, которые нельзя нарушить:
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+- поле `4x4`, координаты в границах, одна плитка на клетку;
+- `movesLimit > 0`;
+- spawn-правила не пусты, вероятности корректны и в сумме дают ровно `1`.
 
-## Suggestions for a good README
+### Проценты и вероятности — не `double`
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+Задание прямо это запрещает, и вот почему:
 
-## Name
-Choose a self-explaining name for your project.
+```java
+0.85 + 0.15 == 1.0   // false
+```
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+`double` не умеет точно хранить `0.1`, `0.15` и большинство десятичных дробей.
+Проверка «сумма вероятностей равна единице» либо не сработает никогда, либо
+выродится в «сравнение с погрешностью» — то есть перестанет быть проверкой.
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+Подходящие варианты:
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+| Как хранить | Пример |
+|---|---|
+| `BigDecimal` | `new BigDecimal("0.85")` |
+| Целые в базисных пунктах | `8500` — это 85.00% |
+| Строка, разбор при загрузке | `"0.85"` |
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+Подвох с Jackson: если объявить поле как `double`, он молча прочитает
+`"0.85"` в `double`, и точность потеряется прямо на загрузке конфига.
+Объявляй такие поля как `String` или `BigDecimal`.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+Так же поступают и с деньгами в реальных системах — по той же причине.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+---
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+## MR2 — Движок ходов
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+```text
+applyMove(state, move) -> moveResult
+```
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+Ходы `UP / DOWN / LEFT / RIGHT`, сдвиг и объединение по правилам 2048:
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+```text
+[1, 1, empty, empty] -> LEFT -> [2, empty, empty, empty]
+[1, 1, 1, empty]     -> LEFT -> [2, 1, empty, empty]
+[1, 1, 1, 1]         -> LEFT -> [2, 2, empty, empty]
+[2, 2, 4, 4]         -> LEFT -> [4, 8, empty, empty]
+```
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+Ключевые правила:
 
-## License
-For open source projects, say how it is licensed.
+- **одна плитка не объединяется дважды за ход:**
+  `[1, 1, 2, empty] -> [2, 2, ...]`, а не `[4, ...]`.
+  Получившаяся двойка уже участвовала в слиянии и с соседней двойкой
+  на этом же ходу не сливается;
+- **невалидный ход не тратит ход** и не создаёт новую плитку.
+  Ход невалиден, если ничего не сдвинулось и ничего не слилось;
+- после валидного хода появляется ровно одна новая плитка;
+- игра **не** заканчивается при достижении `32%` — игрок доигрывает
+  до лимита ходов;
+- считается score;
+- случайность появления плиток отделена от логики слияния.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+---
+
+## MR3 — Награды, симуляция, отчёт
+
+- weighted random для появления плиток — по вероятностям из конфига;
+- таблица наград, итоговая награда по максимальной собранной плитке;
+- batch-симуляция с минимум одной стратегией игрока: `random`;
+- проверка бизнес-ограничения:
+
+```json
+{ "maxRewardCashback": "32", "maxRewardAllowedRate": "0.20" }
+```
+
+```text
+actualMaxRewardRate <= maxRewardAllowedRate -> OK, иначе FAILED
+```
+
+Пример запуска:
+
+```text
+simulate --config campaign.json --players 10000 --strategy random --seed 42 --output report.md
+```
+
+Отчёт (текст, JSON или Markdown) содержит: число игроков, лимит ходов, seed,
+стратегию, распределение максимальных плиток и наград, средний и максимальный
+score, долю игроков с максимальной наградой, статус `OK / FAILED`.
+
+**Честная оговорка.** Это не математическая гарантия. Ограничение проверяется
+эмпирически — для конкретного конфига, seed, числа игроков и стратегии.
+Настоящие проверки баланса промо-акций работают ровно так же.
+
+---
+
+## Обязательные тесты
+
+Заготовки лежат в `src/test/java/academy/cashbackmerge/mandatory/`, разложены
+по merge request'ам. Реализовать нужно все.
+
+| Область | Что проверяем |
+|---|---|
+| Конфиг | валидный принимается; сумма вероятностей ≠ 1 или `movesLimit <= 0` — отклоняется |
+| Seed | одинаковый конфиг и seed → одинаковое начальное поле и одинаковый отчёт |
+| Merge | все четыре примера строк из MR2 |
+| Двойной merge | `[1, 1, 2, empty] -> [2, 2, empty, empty]` |
+| Invalid move | не меняет поле, не тратит ход, не создаёт плитку |
+| Spawn | после валидного хода — ровно одна новая плитка |
+| Завершение | после N валидных ходов игра завершена |
+| Награда | максимальная плитка `16%` → награда соответствующего tier |
+| Симуляция | отчёт содержит распределение наград, долю max reward и статус |
+
+Каждая заготовка выглядит так:
+
+```java
+@Test
+@Disabled("MR2: реализуй тест и удали эту строку")
+@DisplayName("Одна плитка не сливается дважды за ход: [1,1,2,.] -> [2,2,.,.]")
+void tileDoesNotMergeTwiceInOneMove() {
+    fail("Тест не реализован");
+}
+```
+
+Удали строку `@Disabled(...)` и замени `fail(...)` на настоящую проверку.
+Названия методов и `@DisplayName` менять не нужно — по ним ментор сверяется
+с требованиями. Свои тесты добавлять можно и нужно, удалять обязательные — нет.
+
+`@Disabled` означает «пропущен», а не «упал», поэтому сборка зелёная с самого
+начала: иначе на MR1 всё было бы красным из-за тестов MR3, и стало бы непонятно,
+сломал ты что-то или нет.
+
+---
+
+## Баллы
+
+| За что | Баллы |
+|---|---|
+| MR1: модель, конфиг, инварианты, seed, вывод поля | 25 |
+| MR2: движок ходов, merge, score, лимит ходов | 30 |
+| MR3: награды, weighted spawn, симуляция, отчёт | 32 |
+| Обязательные тесты | 10 |
+| README | 3 |
+| **Итого база** | **100** |
+
+**Бонусы (до 25):** стратегия `greedy-score` (5), property-based tests
+для merge-логики (5), сравнение нескольких кампаний (5), размер поля
+через конфиг (4), HTML-отчёт или консольная визуализация (3),
+replay партии по seed и списку ходов (3).
+
+**Максимум: 125.**
+
+---
+
+## Что делать НЕ нужно
+
+GUI, настоящий банковский кэшбэк и API, база данных, сетевой сервис, сложный AI
+для стратегий, математическое доказательство ограничения `20%` — достаточно
+эмпирической проверки.
+
+---
+
+# Работа с шаблоном
+
+## Что установить
+
+Нужен только **JDK 21 или новее** и любая свежая IntelliJ IDEA
+(Community Edition хватает). Gradle ставить не нужно — в проекте лежит
+`gradlew`, он скачает нужную версию сам.
+
+Проверить версию Java: `java -version`. Если она ниже 21, сборка остановится
+с понятным сообщением.
+
+## Запуск
+
+```bash
+# Linux и macOS
+./gradlew build
+./gradlew run
+
+# Windows
+.\gradlew.bat build
+.\gradlew.bat run
+```
+
+Первая сборка занимает пару минут — Gradle качает себя и зависимости.
+Дальше секунды.
+
+Дальше в README команды написаны как `./gradlew`. На Windows подставляй
+`.\gradlew.bat`.
+
+## Команды
+
+| Команда | Что делает |
+|---|---|
+| `./gradlew run` | Запустить программу |
+| `./gradlew run --args="..."` | Запустить с аргументами |
+| `./gradlew test` | Прогнать тесты |
+| `./gradlew check` | Тесты и линтеры — то же, что проверяет CI |
+| `./gradlew spotlessApply` | Отформатировать код |
+| `./gradlew clean` | Удалить результаты сборки |
+
+Пример запуска симуляции:
+
+```bash
+./gradlew run --args="simulate --config config/campaign.example.json --players 1000 --seed 42"
+```
+
+## Настройка IDEA
+
+1. Открыть папку проекта — Gradle подхватится сам.
+2. **Settings → Build Tools → Gradle → Gradle JVM** — выбрать JDK 21+.
+3. **Settings → Build Tools → Gradle → Run tests using → Gradle.**
+
+Третий пункт обязателен: часть тестов запускает программу отдельным процессом
+и получает нужные параметры от Gradle.
+
+## Что уже готово в шаблоне
+
+| Что | Где |
+|---|---|
+| Пример конфига кампании | `config/campaign.example.json` |
+| Заготовки обязательных тестов | `src/test/java/.../mandatory/` |
+| `CliRunner` — запускает программу из теста | `src/test/java/.../support/` |
+| Настроенные линтеры и CI | `config/`, `.gitlab-ci.yml` |
+| Шаблоны описаний merge request'ов | `.gitlab/merge_request_templates/` |
+
+Свои классы складывай в `src/main/java/academy/cashbackmerge/`. Как разложить
+их по пакетам — решать тебе, это часть задания.
+
+## Проверка кода
+
+```bash
+./gradlew check
+```
+
+Ровно эту команду запускает CI. Работают четыре инструмента:
+
+- **Spotless** — форматирование. Руками отступы не правь, запусти
+  `./gradlew spotlessApply`, и он всё сделает сам.
+- **Checkstyle** — именование, структура, типичные ошибки. Отчёт:
+  `build/reports/checkstyle/main.html`
+- **SpotBugs** — настоящие баги: разыменование `null`, сравнение строк
+  через `==`, `equals` без `hashCode`. Отчёт:
+  `build/reports/spotbugs/main.html`
+- **JaCoCo** — покрытие тестами. Отчёт:
+  `build/reports/jacoco/test/html/index.html`
+
+Если правило мешает в конкретном месте, подави его точечно —
+`@SuppressWarnings("checkstyle:MagicNumber")` — но не отключай в конфиге:
+такая правка видна в merge request'е, и ментор о ней спросит.
+
+## Библиотеки
+
+Все одобренные библиотеки перечислены в `gradle/libs.versions.toml`.
+Чтобы подключить, добавь строку в `dependencies` в `build.gradle.kts`:
+
+```kotlin
+implementation(libs.picocli)
+```
+
+Версию указывать не нужно.
+
+Уже подключены: **picocli** (разбор аргументов, подкоманда `simulate`),
+**Jackson** (JSON-конфиг и отчёт), **SLF4J + Logback** (логирование),
+**JUnit 5 + AssertJ** (тесты).
+
+**Добавлять библиотеки, которых нет в каталоге, — только по согласованию
+с ментором.** Для точной арифметики ничего искать не надо: `BigDecimal`
+есть в стандартной библиотеке.
+
+## Как сдавать
+
+Три merge request'а, по одному на этап. При создании MR выбери шаблон описания
+в списке **Description → Choose a template** — там уже готов чеклист.
+
+Перед отправкой прогони у себя:
+
+```bash
+./gradlew spotlessApply check
+```
+
+К MR3 приложи пример отчёта симуляции. Если реализовал что-то из бонусов —
+перечисли это в описании MR, иначе баллы не начислятся.
+
+## Если что-то не работает
+
+**Ошибка про версию Java.** Стоит JDK старее 21. IDEA использует свой JDK
+из настроек Gradle, а не тот, что в `JAVA_HOME`.
+
+**`./gradlew: Permission denied`** (Linux, macOS) — `chmod +x ./gradlew`
+
+**Кракозябры вместо русских букв в консоли Windows.** В `cmd` выполни
+`chcp 65001` перед запуском, в PowerShell —
+`[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`.
+В IDEA такой проблемы нет.
+
+**Сумма вероятностей `0.85 + 0.15` не равна `1`.** Это не баг Java, а свойство
+чисел с плавающей точкой — см. раздел про MR1 выше.
+
+**Тест падает с «Не задано системное свойство academy.cli.classpath».**
+Тест запущен в обход Gradle — включи в IDEA
+**Settings → Build Tools → Gradle → Run tests using → Gradle**.
+
+**Spotless ругается, а что не так — непонятно.** Не разбирайся, запусти
+`./gradlew spotlessApply`.
+
+**Что-то другое.** Приложи к вопросу вывод `./gradlew check --stacktrace`.
