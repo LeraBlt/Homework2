@@ -7,12 +7,15 @@
 # Добавлять сюда новые библиотеки — только по согласованию с ментором.
 
 [versions]
-java = "21"
+java = "25"
 
 checkstyle = "14.0.0"
-spotbugs = "4.10.4"
 jacoco = "0.8.15"
 palantir-java-format = "2.97.0"
+
+errorprone = "2.50.0"
+nullaway = "0.13.8"
+jspecify = "1.0.1"
 
 jackson = "2.22.2"
 picocli = "4.7.7"
@@ -24,9 +27,9 @@ assertj = "3.27.7"
 mockito = "5.23.0"
 wiremock = "3.13.2"
 
-# Префикс plugin- обязателен: имя `spotbugs` уже занято версией инструмента выше.
+# Префикс plugin- обязателен: имя `errorprone` уже занято версией инструмента выше.
 plugin-spotless = "8.10.0"
-plugin-spotbugs = "6.5.11"
+plugin-errorprone = "5.1.0"
 
 [libraries]
 # BOM согласует версии артефактов одного семейства.
@@ -58,8 +61,11 @@ mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter" }
 # HTTP-заглушка для тестов. Обычно хватает com.sun.net.httpserver.
 wiremock = { module = "org.wiremock:wiremock", version.ref = "wiremock" }
 
-# Аннотации @Nullable / @NonNull, которые понимает SpotBugs.
-spotbugs-annotations = { module = "com.github.spotbugs:spotbugs-annotations", version.ref = "spotbugs" }
+# Статический анализ: Error Prone ловит баги на этапе компиляции,
+# NullAway поверх него следит за null, JSpecify даёт аннотации @Nullable/@NullMarked.
+errorprone-core = { module = "com.google.errorprone:error_prone_core", version.ref = "errorprone" }
+nullaway = { module = "com.uber.nullaway:nullaway", version.ref = "nullaway" }
+jspecify = { module = "org.jspecify:jspecify", version.ref = "jspecify" }
 
 [bundles]
 jackson = ["jackson-databind", "jackson-datatype-jsr310", "jackson-module-parameter-names"]
@@ -68,4 +74,4 @@ mockito = ["mockito-core", "mockito-junit-jupiter"]
 
 [plugins]
 spotless = { id = "com.diffplug.spotless", version.ref = "plugin-spotless" }
-spotbugs = { id = "com.github.spotbugs", version.ref = "plugin-spotbugs" }
+errorprone = { id = "net.ltgt.errorprone", version.ref = "plugin-errorprone" }

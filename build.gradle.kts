@@ -1,6 +1,6 @@
-import com.github.spotbugs.snom.Confidence
-import com.github.spotbugs.snom.Effort
 import java.util.Locale
+import net.ltgt.gradle.errorprone.CheckSeverity
+import net.ltgt.gradle.errorprone.errorprone
 
 plugins {
     java
@@ -8,13 +8,13 @@ plugins {
     checkstyle
     jacoco
     alias(libs.plugins.spotless)
-    alias(libs.plugins.spotbugs)
+    alias(libs.plugins.errorprone)
 }
 
 group = "academy"
 version = "1.0.0"
 
-val javaVersion = JavaVersion.VERSION_21
+val javaVersion = JavaVersion.VERSION_25
 if (JavaVersion.current() < javaVersion) {
     throw GradleException(
         """
@@ -22,7 +22,7 @@ if (JavaVersion.current() < javaVersion) {
         |Нужен JDK $javaVersion или новее, а сборка запущена на JDK ${JavaVersion.current()}.
         |
         |IntelliJ IDEA: Settings -> Build Tools -> Gradle -> Gradle JVM.
-        |Терминал: установи JDK 21 и укажи его в JAVA_HOME.
+        |Терминал: установи JDK 25 и укажи его в JAVA_HOME.
         |
         |Сейчас используется: ${System.getProperty("java.home")}
         """.trimMargin()
@@ -38,6 +38,7 @@ application {
 }
 
 tasks.named<JavaExec>("run") {
+    // Без этого `./gradlew run` не увидит ввод с клавиатуры.
     standardInput = System.`in`
 }
 
@@ -50,8 +51,10 @@ dependencies {
     implementation(libs.slf4j.api)
     runtimeOnly(libs.logback.classic)
 
-    compileOnly(libs.spotbugs.annotations)
-    testCompileOnly(libs.spotbugs.annotations)
+    errorprone(libs.errorprone.core)
+    errorprone(libs.nullaway)
+    compileOnly(libs.jspecify)
+    testCompileOnly(libs.jspecify)
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.bundles.testing)
@@ -62,10 +65,47 @@ dependencies {
     // testImplementation(libs.bundles.mockito)
 }
 
+// Проверки Error Prone. Список повторяет соглашения внутренних Gradle-плагинов банка.
+val errorProneErrors = listOf(
+    "MissingOverride", "BadImport", "MissingCasesInEnumSwitch", "FutureReturnValueIgnored",
+    "ReturnValueIgnored", "EqualsIncompatibleType", "FormatStringAnnotation", "ImmutableEnumChecker",
+    "CollectionIncompatibleType", "InvalidPatternSyntax", "MustBeClosedChecker", "StreamResourceLeak",
+    "GuardedBy", "SynchronizeOnNonFinalField",
+)
+val errorProneWarnings = listOf(
+    "UnnecessaryParentheses", "EmptyBlockTag", "MissingSummary", "UnnecessaryAnonymousClass",
+    "PreferJavaTimeOverload", "UnusedVariable", "UnusedMethod",
+)
+val errorProneOff = listOf("StringCaseLocaleUsage", "PreferDurationOverload", "StringSplitter")
+
+// На тестах эти проверки только мешают: фикстуры и хелперы часто выглядят «неиспользованными».
+val errorProneOffInTests = listOf("UnusedVariable", "UnusedMethod", "MissingSummary")
+
 tasks.withType<JavaCompile>().configureEach {
+    val isTestCompile = name.startsWith("compileTest")
+
     options.encoding = "UTF-8"
     options.release = javaVersion.majorVersion.toInt()
-    options.compilerArgs.addAll(listOf("-Xlint:all", "-parameters"))
+    options.compilerArgs.addAll(listOf("-Xlint:all,-processing,-serial", "-parameters"))
+
+    options.errorprone {
+        disableWarningsInGeneratedCode.set(true)
+
+        errorProneErrors.forEach { check(it, CheckSeverity.ERROR) }
+        errorProneWarnings.forEach { check(it, CheckSeverity.WARN) }
+        errorProneOff.forEach { check(it, CheckSeverity.OFF) }
+
+        if (isTestCompile) {
+            // NullAway на тестах выключен: в фикстурах null подставляют намеренно.
+            disable("NullAway")
+            errorProneOffInTests.forEach { check(it, CheckSeverity.OFF) }
+        } else {
+            check("NullAway", CheckSeverity.ERROR)
+            option("NullAway:AnnotatedPackages", "academy")
+            option("NullAway:JSpecifyMode", "true")
+            option("NullAway:AcknowledgeRestrictiveAnnotations", "true")
+        }
+    }
 }
 
 tasks.withType<Javadoc>().configureEach {
@@ -75,6 +115,7 @@ tasks.withType<Javadoc>().configureEach {
 tasks.test {
     useJUnitPlatform()
     jvmArgs(utf8JvmArgs)
+    finalizedBy(tasks.jacocoTestReport)
 
     testLogging {
         events("passed", "skipped", "failed")
@@ -92,7 +133,7 @@ tasks.test {
                     "${result.failedTestCount} упало, ${result.skippedTestCount} пропущено."
             )
             if (result.skippedTestCount > 0) {
-                logger.lifecycle("Пропущенные — обязательные тесты с @Disabled. См. README.\n")
+                logger.lifecycle("Пропущенные — обязательные тесты с @Disabled. См. TASK.md\n")
             }
         }
     })
@@ -127,32 +168,8 @@ checkstyle {
     maxWarnings = 0
 }
 
-spotbugs {
-    toolVersion = libs.versions.spotbugs.get()
-    effort = Effort.MAX
-    reportLevel = Confidence.DEFAULT
-    excludeFilter = file("config/spotbugs/exclude.xml")
-}
-
-tasks.spotbugsMain {
-    reports.create("html") {
-        required = true
-        setStylesheet("fancy-hist.xsl")
-    }
-    reports.create("xml") { required = true }
-}
-
-// На тестовом коде SpotBugs слишком шумит, пользы мало.
-tasks.spotbugsTest {
-    enabled = false
-}
-
 jacoco {
     toolVersion = libs.versions.jacoco.get()
-}
-
-tasks.test {
-    finalizedBy(tasks.jacocoTestReport)
 }
 
 tasks.jacocoTestReport {

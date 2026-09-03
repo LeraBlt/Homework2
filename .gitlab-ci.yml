@@ -1,6 +1,6 @@
 # Локально всё то же самое запускается одной командой: ./gradlew check
 
-image: eclipse-temurin:21-jdk
+image: eclipse-temurin:25-jdk
 
 workflow:
   rules:
@@ -26,6 +26,7 @@ stages:
 
 build:
   stage: build
+  # Error Prone и NullAway работают на этапе компиляции, здесь же и падают.
   script:
     - ./gradlew assemble
   artifacts:
@@ -37,12 +38,11 @@ lint:
   stage: verify
   needs: ["build"]
   script:
-    - ./gradlew spotlessCheck checkstyleMain checkstyleTest spotbugsMain
+    - ./gradlew spotlessCheck checkstyleMain checkstyleTest
   artifacts:
     when: always
     paths:
       - build/reports/checkstyle
-      - build/reports/spotbugs
     expire_in: 1 week
 
 test:
