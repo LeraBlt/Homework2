@@ -1,6 +1,6 @@
 # Локально всё то же самое запускается одной командой: ./gradlew check
 
-image: "${GITLAB_DOCKER_PROXY}/eclipse-temurin:25-jdk"
+image: "${GITLAB_DOCKER_PROXY}/library/gradle:9.7.1-jdk25"
 
 workflow:
   rules:
@@ -17,9 +17,6 @@ default:
     key: "gradle-$CI_COMMIT_REF_SLUG"
     paths:
       - .gradle/caches
-      - .gradle/wrapper
-  before_script:
-    - chmod +x ./gradlew
 
 stages:
   - build
@@ -29,7 +26,7 @@ build:
   stage: build
   # Error Prone и NullAway работают на этапе компиляции, здесь же и падают.
   script:
-    - ./gradlew assemble
+    - gradle assemble
   artifacts:
     paths:
       - build/libs
@@ -39,7 +36,7 @@ lint:
   stage: verify
   needs: ["build"]
   script:
-    - ./gradlew spotlessCheck checkstyleMain checkstyleTest
+    - gradle spotlessCheck checkstyleMain checkstyleTest
   artifacts:
     when: always
     paths:
@@ -50,7 +47,7 @@ test:
   stage: verify
   needs: ["build"]
   script:
-    - ./gradlew test printCoverage
+    - gradle test printCoverage
   coverage: '/Покрытие инструкций: (\d+\.\d+)%/'
   artifacts:
     when: always
