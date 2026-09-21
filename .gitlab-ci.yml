@@ -8,7 +8,7 @@ workflow:
     - if: $CI_COMMIT_REF_PROTECTED == 'true'
 
 variables:
-  GITLAB_DOCKER_PROXY: "gitlab.education.tbank.ru:443/t-academy-2026/dependency_proxy/containers"
+  GITLAB_DOCKER_PROXY: "gitlab.education.tbank.ru:443/t-academy-2026/java/materials/dependency_proxy/containers"
   GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
   GRADLE_OPTS: "-Dorg.gradle.daemon=false"
 
@@ -26,7 +26,7 @@ build:
   stage: build
   # Error Prone и NullAway работают на этапе компиляции, здесь же и падают.
   script:
-    - gradle assemble
+    - gradle --info --stacktrace --console=plain assemble
   artifacts:
     paths:
       - build/libs
@@ -36,7 +36,7 @@ lint:
   stage: verify
   needs: ["build"]
   script:
-    - gradle spotlessCheck checkstyleMain checkstyleTest
+    - gradle --info --stacktrace --console=plain spotlessCheck checkstyleMain checkstyleTest
   artifacts:
     when: always
     paths:
@@ -47,7 +47,7 @@ test:
   stage: verify
   needs: ["build"]
   script:
-    - gradle test printCoverage
+    - gradle --info --stacktrace --console=plain test printCoverage
   coverage: '/Покрытие инструкций: (\d+\.\d+)%/'
   artifacts:
     when: always
