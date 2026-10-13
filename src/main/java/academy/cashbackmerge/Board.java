@@ -36,6 +36,22 @@ public class Board {
         cells[row][col] = level;
     }
 
+    /** Очистка клетки */
+    public void clear(int row, int col) {
+        checkCoordinates(row, col);
+        cells[row][col] = null;
+    }
+
+    /** Замена содержимого клетки */
+    public void set(int row, int col, CashbackLevel level) {
+        checkCoordinates(row, col);
+        if (level == null) {
+            throw new IllegalArgumentException("Уровень плитки не должен быть null");
+        }
+        cells[row][col] = level;
+    }
+
+    /** Метод для вывода поля */
     @Override
     public String toString() {
         StringBuilder text = new StringBuilder();
